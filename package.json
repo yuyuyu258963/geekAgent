@@ -1,0 +1,17 @@
+{
+  "engines": {
+    "node": ">=26 <27"
+  },
+  "scripts": {
+    "dev": "tsx"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.7",
+    "openai": "^6.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  }
+}
