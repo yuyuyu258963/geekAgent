@@ -47,6 +47,34 @@ Day2 实现工具调用循环：模型可以请求 get_current_time, 程序执�
 2. history 依然是那个数组。工具调用只是一种新的 message 角色：assistant 发起 tool_calls，以及回传的 tool 消息
 3.  结果只有字符串。工具 run 的结果一律转成字符串回传给模型。真实世界（时间、命令输出、文件内容）最后都折叠成一行文本，模型层面不需要任何结构化协议
 
+# Day3 Bash 工具
+在编程 Agent 的世界里，只要模型能跑一条 shell 命令，几乎就等于拥有了所有能力 —— 读文件靠 cat/ head，列目录靠 ls，搜代码靠 grep/ rg。换句话说，一个能用的 bash 工具，在能力上已经囊括了后面要做的 read/ glob/ 写文件/ 搜索等所有专用工具。正如 Andrej Karpathy 一类“给模型一个终端基本就够”的观点出圈，也成为很多早期 Agent（如 SWE-agent）把 bash 当作住交互界面的原因。
+但这句话口号只说对了一半：bash 能做很多事，也意味着能造成很大影响。cat 和 rm -rf 都从同一个入口执行，所以不能把模型生成的命令直接交给系统。我们用 run_shell 接入 bash，同时加入超时、输出阶段和执行前确认，并把确认做成可替换的函数
 
+## 为什么 shell 不能直接裸跑
+`bash -c <command>` 本身只是一行，但模型生成的命令可能出错，也可能影响工作区之外的内容。我们先加三项最基本的限制：
+1. 超时：模型让跑 sleep 999 或一个挂起的命令，没有超时就会永久阻塞 请求 -> 执行 -> 回传 的循环，agent 直接卡死
+2. 输出阶段：模型让跑 cat 几个 G 的日志或 find /, stdout 能瞬间撑爆上下文窗口，把前面的对话全挤掉。截到 2000 字符是保底
+3. 执行前确认：命令可能是 rm -rf。当前先使用 y/n，并把确认逻辑独立成一个函数，后续的权限模型（白名单/ask/allow/deny）直接替换它
 
+## 设计：确认留在工具内部
+前面的工具循环已经能处理任意工具的 run，因此这次只是新增 shell 工具，不修改循环体。关键设计决策：
+确认发送在工具 run 内部，而不是在循环里
+
+```
+chat.ts 循环（Day 2 原样，未改）：
+    for 每一轮:
+        发请求 → 流式收 → 若有完整 tool_calls：
+            逐个 execTool(name, args)
+                ↓
+        run_shell.run(args)  ← Day 3 新增，循环对此无感知
+            1. 解析 command
+            2. await confirm(...)   ← 可注入的确认（本行调用的 confirm 由 setConfirmFn 注入）
+            3. bash -c 执行（带 timeout）
+            4. 合并 stdout/stderr + 截断
+            5. 返回字符串
+            ↓
+        结果以 role=tool 回传，模型继续
+```
+这样 execTool 不知道也不关心【这个工具要不要确认】 —— 确认的细节完全封装在 run_shell.run 里，它只调用一个 confirm 函数变量。后续升级权限时，只需要通过 setConfirmFn 把 confirm 换成白名单/allow/deny 实现，循环和其他工具都不用动
 
