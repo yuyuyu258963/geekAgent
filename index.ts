@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline';
 import { loadConfig } from './config';
 import { Chat } from './chat.js';
 import { err, out, paint, colorMap } from './color.js';
+import { installCliConfirm } from './tools';
 
 const config = loadConfig();
 const chat = new Chat( config.baseURL, config.apiKey, config.model);
@@ -9,7 +10,7 @@ const chat = new Chat( config.baseURL, config.apiKey, config.model);
 const rl = createInterface({ input: process.stdin, output: process.stdout, });
 
 rl.setPrompt(paint('user', 'You > '));
-
+installCliConfirm(rl);
 
 let busy = false;
 

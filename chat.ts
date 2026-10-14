@@ -74,7 +74,7 @@ export class Chat {
           
           for (const c of toolCalls) {
             const result = await execTool(c.name, c.args);
-            yield `\n[调用工具 ${c.name} -> ${result}] \n`;
+            yield `\n[调用工具 ${c.name} -> ${result}]`;
             this.history.push({
               role: 'tool',
               tool_call_id: c.id,
