@@ -29,3 +29,12 @@ export const MAX_DIFF_LINES = 1000;
 export const SHELL_TIMEOUT_MS = 10_000;  // 单条命令最长运行时间，超时杀死进程
 export const MAX_OUTPUT_CHARS = 2000;  // 输出超此字符数阶段，避免撑爆上下文
 export const MAX_GLOB_RESULTS = 200;  // glob 最多返回的条数，防止一次性撑爆上下文
+export const MAX_HISTORY_CHARS = Number(process.env.GEEKAGENT_MAX_HISTORY) || 4000;
+export const KEEP_RECENT = 6; // 压缩时保留最近几条完整消息，只摘要更早的
+export const COMPRESS_SYSTEM = `
+你是对话压缩器。把用户贴出的历史对话压缩成简洁的中文要点，尽量保留以下信息：
+- 用户的目标、需求、做过的决定与偏好；
+- 出现过的文件路径、shell 命令、工具调用与关键结论；
+- 尚未完成、仍在推进中的事项。
+只输出压缩后的要点，不要解释、不要寒暄、不要保留逐字对话。
+`

@@ -22,6 +22,7 @@ function printHelp(): void {
     /help - 显示帮助信息
     /reset - 重置对话历史
     /exit - 退出程序
+    /compact - 立即压缩旧对话摘要（不等自动触发）
     
     已接入工具：已接入工具：get_current_time（当前时间）、run_shell（执行 shell 命令，执行前需确认）、ls（列目录）、read（读文件）、glob（通配符查文件）——三者只读、免确认，模型需要时会自动调用。
     输入任意内容即可与模型对话
@@ -47,15 +48,24 @@ rl.on('line', async (raw) => {
         case '/exit':
           rl.close();
           return;
+        case '/compact':
+          out('sys', '\n');
+          out('tool', `${await chat.compact()}`, true);
+          break;
         default:
           out('sys', `未知命令: ${line} (输入 /help 查看帮助)`, true);
       }
     } else {
       try {
         out('sys', `\n`);
-        // 实现持续的流式输出
+        // 持续捕获输出，异步的方式达到流式输出的效果
         for await (const delta of chat.streamReply(line)) {
-          out('model', delta);
+          
+          // 渲染循环中，将进度行（工具调用用 / 历史压缩）用黄色，真正的回复用绿色
+          const isProgress = delta.startsWith('\n[调用工具') ||
+                          delta.startsWith('\n[历史压缩');
+
+          out(isProgress ? 'tool' : 'model', delta);
         }
         out('sys', `\n`);
       } catch(e) {

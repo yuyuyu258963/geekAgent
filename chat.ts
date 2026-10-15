@@ -1,6 +1,7 @@
 
 import OpenAI from "openai";
 import { toOpenAITools, execTool } from "./tools.js";
+import { COMPRESS_SYSTEM, KEEP_RECENT, MAX_HISTORY_CHARS} from "./config";
 
 const MAX_TOOL_TURNS = 20;
 
@@ -23,6 +24,18 @@ export class Chat {
   async *streamReply(userInput: string): AsyncGenerator<string> {
     this.history.push({role: 'user', content: userInput});
     try {
+      if (this.historySize() > MAX_HISTORY_CHARS) {
+        try {
+          const dropped = await this.compactOldMessages();
+          yield  dropped > 0
+            ? `\n[历史压缩：${dropped} 条旧消息合并未 1 条摘要]\n`
+            : `\n[历史压缩：模型未产出摘要，保留原历史]\n`
+            ;
+        } catch (err) {
+          yield `\n[历史压缩失败：保留原历史]\n`;
+        }
+      } 
+      
       for (let turn = 0; turn < MAX_TOOL_TURNS; turn ++) {
         const stream = await this.client.chat.completions.create({
           model: this.model,
@@ -94,6 +107,49 @@ export class Chat {
     } catch (err) {
       this.history.pop();
       throw err;
+    }
+  }
+
+  private historySize(): number {
+    return this.history.reduce((n, m) => n + JSON.stringify(m).length, 0);
+  }
+
+  /**
+   * 历史压缩：把除最近 KEEP_RECENT 条以外的旧消息交给模型摘要
+   * 用一条 system 摘要消息替换它们，让上下文变薄
+   * 返回被合并掉的旧消息条数：模型没产出摘要时返回 0，本次不做替换 
+   */
+  private async compactOldMessages(): Promise<number> {
+    const split = this.history.length - KEEP_RECENT;
+    if (split <= 0) return 0;
+
+    const old = this.history.slice(0, split);
+    const recent = this.history.slice(split);
+    const res = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [
+        { role: 'system', content: COMPRESS_SYSTEM },
+        { role: 'user', content: JSON.stringify(old, null, 2)},
+      ]
+    });
+    const text = res.choices[0]?.message?.content?.trim();
+    if (!text)  return 0;
+    this.history = [
+      { role: 'system', content: `【此前对话摘要】 \n${text}`, ...recent},
+    ];
+    return old.length;
+  }
+
+  async compact(): Promise<string> {
+    if (this.history.length <= KEEP_RECENT) 
+      return `历史压缩：没有可压缩的旧消息`;
+    try {
+      const dropped = await this.compactOldMessages();
+      return dropped > 0
+            ? `历史压缩: ${dropped} 条旧消息合并为 1 条摘要`
+            : `历史压缩：模型未产出摘要，保留历史`;
+    } catch {
+      return `历史压缩失败：保留原历史`;
     }
   }
 }

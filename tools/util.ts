@@ -1,15 +1,6 @@
 import type { Interface as ReadLine } from "node:readline";
 import { out } from "../color";
 
-export interface Tool {
-  name: string,
-  description: string,
-  /** 
-   * OpenAI function 的 parameters 层（如： { type: 'object', properties, additionalProperties }）
-  */
-  parameters: Record<string, unknown>,
-  run(args: Record<string, unknown>): Promise<string> | string;
-}
 
 type ConfirmFn = (prompt: string) => Promise<boolean>;
 export let confirm: ConfirmFn = async () => false;   // 未注入时一律拒绝，命令不会再无人确认下执行
