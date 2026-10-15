@@ -107,3 +107,34 @@ chat.ts 循环（Day 2 原样，未改）：
 1. history 字符数超过阈值后，下一轮正式回答前先调用模型，把较早的多条消息替换成一条“此前对话摘要”
 2. 最近 6 条消息保留原文；压缩完成后继续追问早期事实，模型仍能从摘要中找回关键内容
 3. /compact 可以不等阈值手动执行同一逻辑，并显示本次合并了多少条旧消息
+
+# Day6 多轮对话与持久化
+> Day5 中已经能压缩一条过长的 history，但所有话题仍然在一个数组中：上午改代码、下午查资料，模型每次都要同时看到两边的上下文。
+> 现在要做的就是让一个进程内可以同时维护多条互相独立的会话（/new 、/sessions、/open），再把整个会话集合连同当前 ID 一次落成 JSON
+
+## 目标：会话可以切，也可以跨进程
+验收标准：
+- /new work 创建空会话，/open <id> 来回切换后，每条会话仍保留自己的消息，/sessions 能看到当前会话与消息数
+- /save 把全部会话及当前 ID 写入 .geekagent/sessions.json, /load 回复后仍停在保存时的会话
+- 正常退出会自动保存；临时的 default 会话会获得可再次打开的 ID，重启后可以继续此前的对话
+
+
+## 为什么补创建多个 Chat
+最直观的做法是每条会话创建一个 Chat 对象。但 Chat 里除了 history，还有 OpenAI client、模型配置和完整工具循环。复制多个对象只是为了保存多条数组，职责太重。所以我们仅保留唯一的 Chat，新增 sessions 管理 Map<string, Message[]> 。切换时，先把 Chat 当前的消息交还给 Map，再把目标数组放进 Chat。模型调用逻辑完全不需要认识“会话”
+
+## 存档长什么样
+存档只有两层：current 记录当前 ID，sessions 保存 ID 到 message 数组的映射
+```json
+{
+  "current": "work",
+  "sessions": {
+    "default": [],
+    "work": [
+      { "role": "user", "content": "继续实现 Day 6" },
+      { "role": "assistant", "content": "好。" }
+    ]
+  }
+}
+```
+
+

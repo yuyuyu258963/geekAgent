@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { resolve } from 'node:path';
 
 export interface Config {
   baseURL: string;
@@ -25,6 +26,7 @@ export function loadConfig(): Config {
   return { baseURL, apiKey, model };
 }
 
+export const SESSION_FILE = resolve('.geekagent/sessions.json');
 export const MAX_DIFF_LINES = 1000;
 export const SHELL_TIMEOUT_MS = 10_000;  // 单条命令最长运行时间，超时杀死进程
 export const MAX_OUTPUT_CHARS = 2000;  // 输出超此字符数阶段，避免撑爆上下文

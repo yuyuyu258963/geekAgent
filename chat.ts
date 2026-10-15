@@ -152,4 +152,12 @@ export class Chat {
       return `历史压缩失败：保留原历史`;
     }
   }
+
+  exportHistory(): OpenAI.Chat.Completions.ChatCompletionMessageParam[]  {
+    return this.history;
+  }
+
+  importHistory(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
+    this.history = messages;
+  }
 }
