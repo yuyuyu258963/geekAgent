@@ -24,3 +24,8 @@ export function loadConfig(): Config {
 
   return { baseURL, apiKey, model };
 }
+
+export const MAX_DIFF_LINES = 1000;
+export const SHELL_TIMEOUT_MS = 10_000;  // 单条命令最长运行时间，超时杀死进程
+export const MAX_OUTPUT_CHARS = 2000;  // 输出超此字符数阶段，避免撑爆上下文
+export const MAX_GLOB_RESULTS = 200;  // glob 最多返回的条数，防止一次性撑爆上下文

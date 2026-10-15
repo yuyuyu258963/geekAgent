@@ -2,7 +2,9 @@ import { createInterface } from 'node:readline';
 import { loadConfig } from './config';
 import { Chat } from './chat.js';
 import { err, out, paint, colorMap } from './color.js';
-import { installCliConfirm } from './tools';
+import { installCliConfirm } from './tools/util';
+// file.ts 在加载时调用 registerTool；不导入它就不会进入工具注册表。
+import './tools/file.js';
 
 const config = loadConfig();
 const chat = new Chat( config.baseURL, config.apiKey, config.model);
@@ -20,6 +22,8 @@ function printHelp(): void {
     /help - 显示帮助信息
     /reset - 重置对话历史
     /exit - 退出程序
+    
+    已接入工具：已接入工具：get_current_time（当前时间）、run_shell（执行 shell 命令，执行前需确认）、ls（列目录）、read（读文件）、glob（通配符查文件）——三者只读、免确认，模型需要时会自动调用。
     输入任意内容即可与模型对话
     `, true);
 }

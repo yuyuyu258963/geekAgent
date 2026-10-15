@@ -2,7 +2,7 @@
 import OpenAI from "openai";
 import { toOpenAITools, execTool } from "./tools.js";
 
-const MAX_TOOL_TURNS = 5;
+const MAX_TOOL_TURNS = 20;
 
 export class Chat {
   private client: OpenAI;
