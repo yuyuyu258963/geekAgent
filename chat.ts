@@ -1,9 +1,20 @@
 
 import OpenAI from "openai";
 import { toOpenAITools, execTool } from "./tools.js";
-import { COMPRESS_SYSTEM, KEEP_RECENT, MAX_HISTORY_CHARS} from "./config";
+import { 
+  COMPRESS_SYSTEM, 
+  KEEP_RECENT, 
+  MAX_HISTORY_CHARS,
+} from "./config";
 
 const MAX_TOOL_TURNS = 20;
+
+export interface UsageInfo {
+  prompt: number;
+  completion: number,
+  total: number,
+}
+
 
 export class Chat {
   private client: OpenAI;
@@ -42,12 +53,14 @@ export class Chat {
           messages: this.history,
           tools: toOpenAITools(),   // 这部分在上下文中注入工具
           stream: true,
+          stream_options: { include_usage: true },
         });
 
         // 流式边攒内容边聚拢工具调用（delta 按 index 碎片下发）
         let answer = "";
         const calls = new Map<number, {id: string, name: string, args: string}>();
         for await (const chunk of stream) {
+          
           const delta = chunk.choices[0]?.delta ?? {};
           if(delta.content) {
             answer += delta.content;
@@ -66,6 +79,10 @@ export class Chat {
             if(tc.function?.name) call.name += tc.function.name;
             if(tc.function?.arguments) call.args += tc.function.arguments;
           }
+
+          if (chunk.usage)  
+              this.reportUsage(chunk.usage);
+
         }
         
         // 汇总需要 toolCalls 的集合，调用工具获取结果，传入上下文
@@ -132,6 +149,8 @@ export class Chat {
         { role: 'user', content: JSON.stringify(old, null, 2)},
       ]
     });
+
+    this.reportUsage(res.usage);
     const text = res.choices[0]?.message?.content?.trim();
     if (!text)  return 0;
     this.history = [
@@ -159,5 +178,23 @@ export class Chat {
 
   importHistory(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
     this.history = messages;
+  }
+
+  // 每次请求拿到用量旧回调出去，供 TUI 面板累计显示
+  private onUsage?: (u: UsageInfo) => void;
+  setUsageListener(fn : (u: UsageInfo) => void): void {
+    this.onUsage = fn;
+  }
+
+  /**
+   * 把接口返回的 usage 归一化成 UsageInfo，回调给外部累计 
+   */
+  private reportUsage(usage: OpenAI.CompletionUsage | null | undefined): void {
+    if (!usage) return;
+    this.onUsage?.({
+      prompt: usage.prompt_tokens,
+      completion: usage.completion_tokens,
+      total: usage.total_tokens,
+    })
   }
 }
