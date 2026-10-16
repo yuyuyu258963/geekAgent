@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline';
-import { loadConfig, CONTEXT_WINDOW } from './config';
+import { loadConfig, CONTEXT_WINDOW, ROOT_DISPLAY_WIDTH } from './config';
 import { Chat } from './chat.js';
 import { err, out, paint, colorMap } from './color.js';
 import { installCliConfirm, setConfirmFn } from './tools/util';
@@ -8,9 +8,27 @@ import './tools/file.js';
 import { Sessions } from './sessions';
 import { loadSessions, saveSessions } from './storage';
 import { estimateTokens, TUI } from './tui';
+import { loadPermissions, permissionRoot, setupPermissions } from './permission';
+import { visibleWidth } from '@earendil-works/pi-tui';
+import { basename } from 'node:path';
+import { undo } from './undo';
 
 const config = loadConfig();
 const sessions = new Sessions();
+// 明确类型，避免被推断为 string | undefined；实际赋值在下面的异步初始化中完成。
+let permissions!: Awaited<ReturnType<typeof loadPermissions>>;
+void (async () => {
+  try {
+    permissions = await loadPermissions();
+  } catch (e) {
+    console.error(`加载权限配置失败：${(e as Error).message}`);
+    process.exit(1);
+  }
+})();
+
+
+const root = permissionRoot();
+const shownRoot = visibleWidth(root) <= ROOT_DISPLAY_WIDTH ? root : `.../${basename(root)}`;
 const chat = new Chat( config.baseURL, config.apiKey, config.model);
 
 let busy = false;
@@ -23,6 +41,9 @@ chat.setUsageListener((u) => {
   usage.round += u.total;
   updatePanel();
 });
+
+
+
 
 function printHelp(): void {
   tui.append(
@@ -112,6 +133,13 @@ async function handleCommand(line: string): Promise<void> {
           tui.append(`读取失败：${(e as Error).message}`, 'sys');
         }
         break;
+      case '/undo':
+        try {
+          tui.append(`（${await undo()}）`, 'sys');
+        } catch (e) {
+          tui.append(`撤销失败：${(e as Error).message}`, 'sys');
+        }
+        break;
       case '/exit':
         onExit();
         return;
@@ -195,6 +223,18 @@ async function onExit(): Promise<void> {
   process.exit(0);
 }
 
-tui.start();
-updatePanel();
-tui.append('输入 /help 查看命; 右侧面板实时显示用量', 'sys');
+
+async function main() {
+  let permissions;
+  try {
+    permissions = await loadPermissions();
+  } catch (e) {
+    console.error(`加载权限配置失败：${(e as Error).message}`);
+    process.exit(1);
+  }
+  setupPermissions(permissions, (prompt) => tui.confirm(prompt));
+  tui.start();
+  updatePanel();
+  tui.append('输入 /help 查看命; 右侧面板实时显示用量', 'sys');
+}
+void main();

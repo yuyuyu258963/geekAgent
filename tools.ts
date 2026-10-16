@@ -11,6 +11,8 @@ import {
   MAX_GLOB_RESULTS
 } from './config';
 import { FileTools } from "./tools/file";
+import { authorize, policyFor, redact } from "./permission";
+import { err } from './color';
 
 const execAsync = promisify(exec);
 
@@ -30,6 +32,7 @@ export const BUILTIN_TOOLS: Tool[] = [
     name: 'get_current_time',
     description: '获取当前时间（Asia/shanghai）',
     parameters: { type: 'object', properties: {}, additionalProperties: false},
+    authorizes: true,
     run: () => new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
   },
   {
@@ -43,6 +46,7 @@ export const BUILTIN_TOOLS: Tool[] = [
       required: ['command'],
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const command = String(args.command ?? '').trim();
       if(!command) return '缺少参数 command';
@@ -100,11 +104,14 @@ export async function execTool(name: string, argsJson: string): Promise<string> 
   }
 
   try {
-    return await tool.run(args);
+    if(policyFor(name) === 'deny')
+      return `权限拒绝：工具 ${name} 不允许执行`;
+    
+    if(!tool.authorizes && !(await authorize(name)))
+        return `权限拒绝：工具${name} 不允许执行`;
+    
+    return redact(await tool.run(args));
   } catch(e) {
     return `工具 ${name} 执行失败: ${(e as Error).message}`;
   }
 };
-
-
-

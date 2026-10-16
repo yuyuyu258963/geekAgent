@@ -3,12 +3,15 @@ import { confirm } from "./util";
 import { Tool } from "./types";
 import { dirname } from 'node:path';
 import { truncate } from "../utils";
+import { err } from '../color';
 import {
   MAX_DIFF_LINES,
   SHELL_TIMEOUT_MS,
   MAX_OUTPUT_CHARS,
   MAX_GLOB_RESULTS
 } from '../config';
+import { authorize } from '../permission';
+import { backup } from '../undo';
 
 
 // 按行拆分文本：忽略结尾换行带来的空串：空文本返回空数组
@@ -43,18 +46,20 @@ function simpleDiff(oldText: string, newText: string): string {
   return out.join("\n");
 }
 
-
-async function commitWrite(file: string, next: string): Promise<boolean> {
-  let oldtxt = '';
+async function commitWrite(tool: 'write' | 'patch', file: string, next: string): Promise<boolean> {
+  let oldtxt: string | null = null;
   try {
     oldtxt = await readFile(file, 'utf8');
-  } catch {
+  } catch (err) {
     // 新文件：旧内容为空
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT')
+      throw err;
   }
 
-  if(oldtxt === next) return true;
-  if(!(await confirm(`\n${simpleDiff(oldtxt, next)}\n 确认写入 ${file}?`)))
+  if (oldtxt === next) return true;
+  if (!(await authorize(tool, `\n${simpleDiff(oldtxt ?? '', next)}\n确认写入${file}?`)))
     return false;
+  await backup(file, oldtxt);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, next);
   return true;
@@ -82,10 +87,11 @@ export const FileTools: Tool[] = [
       required: ['path', 'content'],
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const file = String(args.path ?? '').trim();
       if(!file) return `缺少参数 path`;
-      const wrote = await commitWrite(file, String(args.content ?? ''));
+      const wrote = await commitWrite('write', file, String(args.content ?? ''));
       return wrote ? `已写入 ${file}` : `已取消写入`;
     },
   },
@@ -115,6 +121,7 @@ export const FileTools: Tool[] = [
       required: ['path', 'hunks'],
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const file = String(args.path ?? '').trim()
       if (!file)  return '缺少参数 path';
@@ -138,7 +145,7 @@ export const FileTools: Tool[] = [
       }
 
       if (patched === original) return `替换后内容与原文件一致，未做任何修改`;
-      const wrote = await commitWrite(file, patched);
+      const wrote = await commitWrite('patch', file, patched);
       return wrote ? `已应用 ${hunks.length} 处修改到 ${file}` : '已取消修改';
     }
   },
@@ -150,6 +157,7 @@ export const FileTools: Tool[] = [
       properties: { path: { type: 'string', description: '要列出的目录路径，默认当前目录。'}},
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const dir = String(args.path ?? '.').trim() || '.';
       try {
@@ -178,6 +186,7 @@ export const FileTools: Tool[] = [
       required: ['path'],
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const file = String(args.path ?? '').trim();
       if(!file) return '缺少参数 path';
@@ -210,6 +219,7 @@ export const FileTools: Tool[] = [
       required: ['pattern'],
       additionalProperties: false,
     },
+    authorizes: true,
     run: async (args) => {
       const pattern = String(args.pattern ?? '').trim();
       if(!pattern) return '缺少参数 pattern';

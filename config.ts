@@ -27,10 +27,11 @@ export function loadConfig(): Config {
 }
 
 export const SESSION_FILE = resolve('.geekagent/sessions.json');
+export const ROOT_DISPLAY_WIDTH = 100;
 export const MAX_DIFF_LINES = 1000;
 export const SHELL_TIMEOUT_MS = 10_000;  // 单条命令最长运行时间，超时杀死进程
 export const MAX_OUTPUT_CHARS = 2000;  // 输出超此字符数阶段，避免撑爆上下文
-export const CONTEXT_WINDOW = 65536;  // 输出超此字符数阶段，避免撑爆上下文
+export const CONTEXT_WINDOW = 6553600;  // 输出超此字符数阶段，避免撑爆上下文
 export const MAX_GLOB_RESULTS = 200;  // glob 最多返回的条数，防止一次性撑爆上下文
 export const MAX_HISTORY_CHARS = Number(process.env.GEEKAGENT_MAX_HISTORY) || 4000;
 export const KEEP_RECENT = 6; // 压缩时保留最近几条完整消息，只摘要更早的
